@@ -6,11 +6,12 @@ from typing import List
 import FlightRadar24
 import aiohttp
 from FlightRadar24 import FlightRadar24API
+from loguru import logger as log
 
-discord_webhook = ""
-area_of_interest = {"latitude": 42.86853024860042, "longitude": 30.40746816708344, "radius": 150000}
 
-DEBUG = True
+area_of_interest = {"latitude": 43.533321723, "longitude": 33.245738826, "radius": 345000}
+
+DEBUG = False
 
 
 class Flight:
@@ -27,20 +28,22 @@ class Flight:
 
 
 class ForteTracker:
-    def __init__(self):
+    def __init__(self, webhooks: List[str]):
         self.fr_api = FlightRadar24API()
         self.tracked_flights = {"FORTE10": Flight("FORTE10")}
+        log.success("Forte tracker initialized")
+        self.webhooks = webhooks
 
-    @staticmethod
-    async def send_discord_alert(message):
+    async def send_discord_alert(self, message):
         if DEBUG:
             print(message)
             return
         data = {"content": message}
         async with aiohttp.ClientSession() as session:
-            async with session.post(discord_webhook, json=data) as response:
-                if response.status != 204:
-                    print(f"Failed to send webhook message: {response.status}, {await response.text()}")
+            for webhook in self.webhooks:
+                async with session.post(webhook, json=data) as response:
+                    if response.status != 204:
+                        print(f"Failed to send webhook message: {response.status}, {await response.text()}")
 
     @staticmethod
     def find_flight(callsign: str, flights: List[FlightRadar24.Flight]):
@@ -69,6 +72,7 @@ class ForteTracker:
                 flight.present = False
                 await self.send_discord_alert(f":airplane: {flight.callsign} has left the area")
 
+
     async def run(self):
         while True:
             await self.get_forte()
@@ -76,5 +80,6 @@ class ForteTracker:
 
 
 if __name__ == '__main__':
-    ft = ForteTracker()
+    _webhooks = []
+    ft = ForteTracker(_webhooks)
     asyncio.run(ft.run())
